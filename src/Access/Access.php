@@ -169,9 +169,15 @@ class Access
 		// Preload all groups
 		if (empty(self::$userGroups))
 		{
-			self::$userGroups = Group::all()
+			self::$userGroups = array();
+
+			$groups = Group::all()
 				->order('lft', 'asc')
 				->rows();
+			foreach ($groups as $group)
+			{
+				self::$userGroups[$group->get('id')] = $group;
+			}
 		}
 
 		// Make sure groupId is valid
@@ -210,10 +216,13 @@ class Access
 	public static function getAssetRules($asset, $recursive = false)
 	{
 		// Build the database query to get the rules for the asset.
-		$query = Asset::all()
+		$model = Asset::blank();
+
+		$db = App::get('db');
+		$query = $db->getQuery()
 			->select($recursive ? 'b.rules' : 'a.rules');
 
-		$query->from($query->getTableName(), 'a');
+		$query->from($model->getTableName(), 'a');
 
 		// If the asset identifier is numeric assume it is a primary key, else lookup by name.
 		if (is_numeric($asset))
@@ -228,19 +237,22 @@ class Access
 		// If we want the rules cascading up to the global asset node we need a self-join.
 		if ($recursive)
 		{
-			$query->joinRaw($query->getTableName() . ' AS b', 'b.lft <= a.lft AND b.rgt >= a.rgt', 'left');
+			$query->joinRaw($model->getTableName() . ' AS b', 'b.lft <= a.lft AND b.rgt >= a.rgt', 'left');
 			$query->order('b.lft', 'asc');
 		}
 
 		$query->group($recursive ? 'b.id, b.rules, b.lft' : 'a.id, a.rules, a.lft');
 
-		$result = $query->rows()->fieldsByKey('rules');
+		$db->setQuery($query->toString());
+		$result = $db->loadColumn();
+
+		//$result = $query->rows()->fieldsByKey('rules');
 
 		// Get the root even if the asset is not found and in recursive mode
 		if (empty($result))
 		{
 			$result = Asset::oneOrFail(Asset::getRootId());
-			$result = array($result);
+			$result = array($result->get('rules'));
 		}
 
 		// Instantiate and return the Rules object for the asset rules.

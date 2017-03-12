@@ -394,9 +394,10 @@ class Rule extends Relational
 	 * @param   array   $rules
 	 * @param   mixed   $user
 	 * @param   string  $name
+	 * @param   bool    $isNew
 	 * @return  array
 	 */
-	public static function verify($password, $rules, $user, $name=null)
+	public static function verify($password, $rules, $user, $name=null, $isNew=true)
 	{
 		if (empty($rules))
 		{
@@ -574,6 +575,14 @@ class Rule extends Relational
 				}
 
 				if ($phist->exists($password, $date->format("Y-m-d H:i:s")))
+				{
+					$fail[] = $rule['failuremsg'];
+				}
+
+				$current = Password::getInstance($user);
+
+				// [HUBZERO][#10274] Check the current password too
+				if ($isNew && Password::passwordMatches($user, $password, true))
 				{
 					$fail[] = $rule['failuremsg'];
 				}
